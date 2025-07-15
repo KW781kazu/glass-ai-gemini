@@ -4,32 +4,32 @@ import requests
 
 app = Flask(__name__)
 
-# 最初の通話受付（名前を聞く）
 @app.route("/incoming-call", methods=["POST"])
 def incoming_call():
+    # 初回の挨拶と名前を聞く
     twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" timeout="10" speechTimeout="auto" action="/handle-name" method="POST">
-    <Say language="ja-JP" voice="alice">こんにちは。お名前を教えてください。</Say>
+  <Gather input="speech" language="ja-JP" action="/handle-speech" method="POST">
+    <Say voice="alice" language="ja-JP">こんにちは。お名前を教えてください。</Say>
   </Gather>
-  <Say language="ja-JP" voice="alice">音声が確認できませんでした。もう一度おかけ直しください。</Say>
+  <Say voice="alice" language="ja-JP">音声が聞き取れませんでした。</Say>
 </Response>"""
     return Response(twiml, mimetype="text/xml")
 
-# ユーザーが名前を答えたあとの処理
-@app.route("/handle-name", methods=["POST"])
-def handle_name():
-    # Twilioからの音声認識結果
-    user_input = request.form.get("SpeechResult", "不明")
 
-    # Geminiへ送信するプロンプト
-    prompt = f"お客様の名前は「{user_input}」です。丁寧にお礼を伝えてください。"
+@app.route("/handle-speech", methods=["POST"])
+def handle_speech():
+    # ユーザーの発話を取得
+    user_speech = request.form.get("SpeechResult", "わかりません")
 
-    # Gemini API 呼び出し
+    # Geminiにプロンプトとして送る
+    prompt = f"相手が「{user_speech}」と話しました。それに対して自然な日本語で返答してください。"
+
     headers = {
         "Authorization": f"Bearer {os.environ['GEMINI_API_KEY']}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "contents": [{"parts": [{"text": prompt}]}]
     }
@@ -41,20 +41,15 @@ def handle_name():
             json=payload
         )
         reply = gemini_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
+    except Exception:
         reply = "ありがとうございます。担当者におつなぎします。"
 
-    # Twilioへ返すTwiML（日本語で応答）
+    # 応答をTwilioへ返す
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="ja-JP" voice="alice">{reply}</Say>
-  <Pause length="1"/>
-  <Say language="ja-JP" voice="alice">それでは失礼いたします。</Say>
+  <Say voice="alice" language="ja-JP">{reply}</Say>
+  <Say voice="alice" language="ja-JP">それでは失礼いたします。</Say>
   <Hangup/>
 </Response>"""
-    return Response(twiml, mimetype="text/xml")
 
-# ポート指定（Render用）
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    return Response(twiml, mimetype="text/xml")
