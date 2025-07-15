@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route("/incoming-call", methods=["POST"])
 def incoming_call():
-    # 初回の挨拶と名前を聞く
+    # 初回の挨拶と音声入力を促す
     twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" language="ja-JP" action="/handle-speech" method="POST">
@@ -19,10 +19,8 @@ def incoming_call():
 
 @app.route("/handle-speech", methods=["POST"])
 def handle_speech():
-    # ユーザーの発話を取得
     user_speech = request.form.get("SpeechResult", "わかりません")
 
-    # Geminiにプロンプトとして送る
     prompt = f"相手が「{user_speech}」と話しました。それに対して自然な日本語で返答してください。"
 
     headers = {
@@ -44,7 +42,6 @@ def handle_speech():
     except Exception:
         reply = "ありがとうございます。担当者におつなぎします。"
 
-    # 応答をTwilioへ返す
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="ja-JP">{reply}</Say>
@@ -53,3 +50,9 @@ def handle_speech():
 </Response>"""
 
     return Response(twiml, mimetype="text/xml")
+
+
+# ✅ Flaskアプリ起動設定（Render向け）
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
