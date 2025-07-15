@@ -1,4 +1,3 @@
-
 from flask import Flask, request, Response
 import os
 import requests
@@ -22,7 +21,7 @@ def handle_call():
     }
 
     gemini_response = requests.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+        "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent",
         headers=headers,
         json=payload
     )
@@ -39,3 +38,8 @@ def handle_call():
 </Response>"""
 
     return Response(twiml, mimetype="text/xml")
+
+# ✅ Flaskアプリを起動するコードを追加（Render必須）
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host='0.0.0.0', port=port)
