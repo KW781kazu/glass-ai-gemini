@@ -8,10 +8,9 @@ app = Flask(__name__)
 def handle_call():
     from_number = request.form.get("From", "不明")
 
-    # Geminiに送るプロンプト
+    # Gemini に送るプロンプト
     prompt = f"{from_number} さんから電話がありました。お名前を聞いてください。"
 
-    # Gemini APIに送信
     headers = {
         "Authorization": f"Bearer {os.environ['GEMINI_API_KEY']}",
         "Content-Type": "application/json"
@@ -24,14 +23,14 @@ def handle_call():
         gemini_response = requests.post(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=5  # タイムアウトを設定
         )
         reply = gemini_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Gemini API error: {e}")
+    except Exception:
         reply = "こんにちは。こちらはAI受付です。お名前を教えてください。"
 
-    # Twilio に返す応答（TwiML）
+    # TwiML 応答を生成
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="ja-JP">{reply}</Say>
@@ -39,6 +38,6 @@ def handle_call():
 
     return Response(twiml, mimetype="text/xml")
 
-# === ここを忘れると Render 上でアプリが動かない ===
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    # ポイント：Render で正しく外部公開するために必要
+    app.run(host="0.0.0.0", port=10000)
