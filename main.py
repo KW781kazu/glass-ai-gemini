@@ -31,15 +31,29 @@ def handle_call():
     except Exception:
         reply = "こんにちは。こちらはAI受付です。お名前を教えてください。"
 
-    # Twilioに返すTwiML（日本語で話す）
+    # Twilioに返すTwiML（<Gather>で音声を受け取る準備をする）
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice" language="ja-JP">{reply}</Say>
+  <Gather input="speech" timeout="5" language="ja-JP" action="/process-name" method="POST">
+    <Say voice="alice" language="ja-JP">{reply}</Say>
+  </Gather>
+  <Say voice="alice" language="ja-JP">失礼しました。もう一度おかけ直しください。</Say>
 </Response>"""
 
     return Response(twiml, mimetype="text/xml")
 
-# ✅ Flaskアプリを起動するコードを追加（Render必須）
+# 名前処理ルート（仮）
+@app.route("/process-name", methods=["POST"])
+def process_name():
+    speech_result = request.form.get("SpeechResult", "聞き取れませんでした")
+    reply = f"{speech_result}さんですね。ありがとうございます。担当者におつなぎします。"
+    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice" language="ja-JP">{reply}</Say>
+</Response>"""
+    return Response(twiml, mimetype="text/xml")
+
+# Flask 起動設定
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
