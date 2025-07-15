@@ -4,15 +4,14 @@ import requests
 
 app = Flask(__name__)
 
-# 通話の最初に呼ばれるルート
 @app.route("/incoming-call", methods=["POST"])
 def handle_call():
     from_number = request.form.get("From", "不明")
 
-    # Gemini に送るプロンプト
+    # Geminiに送るプロンプト
     prompt = f"{from_number} さんから電話がありました。お名前を聞いてください。"
 
-    # Gemini へ送信
+    # Gemini APIに送信
     headers = {
         "Authorization": f"Bearer {os.environ['GEMINI_API_KEY']}",
         "Content-Type": "application/json"
@@ -20,41 +19,26 @@ def handle_call():
     payload = {
         "contents": [{"parts": [{"text": prompt}]}]
     }
-    gemini_response = requests.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
-        headers=headers,
-        json=payload
-    )
 
     try:
+        gemini_response = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+            headers=headers,
+            json=payload
+        )
         reply = gemini_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:
+    except Exception as e:
+        print(f"Gemini API error: {e}")
         reply = "こんにちは。こちらはAI受付です。お名前を教えてください。"
 
-    # TwiML で返す（ここで音声認識の入力を受け付ける）
+    # Twilio に返す応答（TwiML）
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" timeout="5" language="ja-JP"
-          action="https://glass-ai-gemini.onrender.com/process-name" method="POST">
-    <Say voice="alice" language="ja-JP">{reply}</Say>
-  </Gather>
-  <Say voice="alice" language="ja-JP">失礼しました。もう一度おかけ直しください。</Say>
+  <Say voice="alice" language="ja-JP">{reply}</Say>
 </Response>"""
+
     return Response(twiml, mimetype="text/xml")
 
-# 名前を処理するルート
-@app.route("/process-name", methods=["POST"])
-def process_name():
-    name = request.form.get("SpeechResult", "名前が聞き取れませんでした")
-    print(f"📞 音声認識結果: {name}")
-
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice" language="ja-JP">{name}さんですね。ありがとうございます。</Say>
-</Response>"""
-    return Response(twiml, mimetype="text/xml")
-
-# Renderのヘルスチェック用ルート（optional）
-@app.route("/", methods=["GET"])
-def index():
-    return "OK", 200
+# === ここを忘れると Render 上でアプリが動かない ===
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
