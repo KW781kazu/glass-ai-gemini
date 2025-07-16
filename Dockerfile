@@ -5,5 +5,4 @@ COPY . /app
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "main.py"]
-
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "main:app"]
