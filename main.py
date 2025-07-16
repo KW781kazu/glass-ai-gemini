@@ -6,40 +6,57 @@ app = Flask(__name__)
 
 @app.route("/incoming-call", methods=["POST"])
 def handle_call():
-    from_number = request.form.get("From", "不明")
+    # 最初の着信に対して、音声入力を促す
+    twiml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="/process-name" method="POST">
+    <Say voice="alice" language="ja-JP">こんにちは。こちらはAI受付です。お名前を教えてください。</Say>
+  </Gather>
+  <Say voice="alice" language="ja-JP">すみません、音声が認識できませんでした。</Say>
+</Response>"""
+    return Response(twiml, mimetype="text/xml")
 
-    prompt = f"{from_number} さんから電話がありました。お名前を聞いてください。"
+@app.route("/process-name", methods=["POST"])
+def process_name():
+    # Twilioから音声認識結果を取得
+    name = request.form.get("SpeechResult", "").strip()
+    if not name:
+        reply = "すみません、うまく聞き取れませんでした。もう一度おかけ直しください。"
+    else:
+        # Gemini APIで応答生成
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_api_key:
+            reply = "Gemini APIキーが設定されていません。"
+        else:
+            headers = {
+                "Authorization": f"Bearer {gemini_api_key}",
+                "Content-Type": "application/json"
+            }
+            prompt = f"お客様のお名前は {name} さんです。確認してお礼を伝えてください。"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}]
+            }
 
-    gemini_api = os.environ.get("GEMINI_API_KEY")
-    headers = {
-        "Authorization": f"Bearer {gemini_api}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
+            try:
+                res = requests.post(
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+                    headers=headers,
+                    json=payload,
+                    timeout=5
+                )
+                reply = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception:
+                reply = f"{name}さん、ありがとうございます。担当者におつなぎします。"
 
-    try:
-        gemini_response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
-            headers=headers,
-            json=payload,
-            timeout=10
-        )
-        reply = gemini_response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:
-        reply = "こんにちは。こちらはAI受付です。お名前を教えてください。"
-
+    # 応答を読み上げ、通話を終了
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="ja-JP">{reply}</Say>
-  <Pause length="5"/>
-  <Say voice="alice" language="ja-JP">お名前をお願いします。</Say>
+  <Say voice="alice" language="ja-JP">それでは失礼いたします。</Say>
+  <Hangup/>
 </Response>"""
-
     return Response(twiml, mimetype="text/xml")
 
+# ポート設定（Render環境用）
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    host = "0.0.0.0"
-    app.run(host=host, port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
