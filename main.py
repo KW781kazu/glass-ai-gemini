@@ -6,10 +6,15 @@ app = Flask(__name__)
 
 @app.route("/incoming-call", methods=["POST"])
 def incoming_call():
-    # 最初の案内：名前を聞く
+    # Gather強化：timeoutを10秒に、hintsに日本語名を追加（推測の助け）
     twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="/gather" method="POST" timeout="5">
+  <Gather input="speech"
+          action="/gather"
+          method="POST"
+          language="ja-JP"
+          timeout="10"
+          hints="田中,佐藤,鈴木,高橋,山本,渡辺,伊藤">
     <Say voice="alice" language="ja-JP">こんにちは。こちらはAI受付です。お名前を教えてください。</Say>
   </Gather>
   <Say voice="alice" language="ja-JP">うまく聞き取れませんでした。もう一度お願いします。</Say>
@@ -22,7 +27,7 @@ def gather():
     print("📞 ユーザー発話:", user_speech)
 
     if not user_speech:
-        reply = "すみません、もう一度お名前を教えてください。"
+        reply = "すみません、認識できませんでした。"
     else:
         prompt = f"お客様は「{user_speech}」と話しました。名前として理解し、「{user_speech}さんですね。ありがとうございます。」という日本語で返してください。"
 
